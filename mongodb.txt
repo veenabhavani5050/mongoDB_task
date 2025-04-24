@@ -1,0 +1,158 @@
+// 1. USE THE DATABASE
+use zenClassDB
+
+// 2. INSERT SAMPLE DATA FOR EACH COLLECTION (Minimal for demo)
+// USERS collection
+db.users.insertMany([
+  { _id: 1, name: "veena", mentor_id: 1 },
+  { _id: 2, name: "alina", mentor_id: 2 },
+  { _id: 3, name: "aayath", mentor_id: 1 }
+]);
+
+// MENTORS collection
+db.mentors.insertMany([
+  { _id: 1, name: "ram", mentee_count: 20 },
+  { _id: 2, name: "Sam", mentee_count: 10 }
+]);
+
+// CODEKATA collection
+db.codekata.insertMany([
+  { user_id: 1, problems_solved: 50 },
+  { user_id: 2, problems_solved: 100 },
+  { user_id: 3, problems_solved: 80 }
+]);
+
+// ATTENDANCE collection
+db.attendance.insertMany([
+  { user_id: 1, date: new Date("2020-10-16"), present: true },
+  { user_id: 2, date: new Date("2020-10-16"), present: false },
+  { user_id: 3, date: new Date("2020-10-20"), present: false }
+]);
+
+// TASKS collection
+db.tasks.insertMany([
+  { topic_id: 1, task: "Build a REST API", date: new Date("2020-10-12"), submitted: true, user_id: 1 },
+  { topic_id: 2, task: "MongoDB Query", date: new Date("2020-10-18"), submitted: false, user_id: 2 },
+  { topic_id: 2, task: "MongoDB Query", date: new Date("2020-10-18"), submitted: false, user_id: 3 }
+]);
+
+// TOPICS collection
+db.topics.insertMany([
+  { _id: 1, name: "Node.js", date: new Date("2020-10-10") },
+  { _id: 2, name: "MongoDB", date: new Date("2020-10-18") },
+  { _id: 3, name: "React", date: new Date("2020-11-05") }
+]);
+
+// COMPANY_DRIVES collection
+db.company_drives.insertMany([
+  { user_id: 1, company: "Google", date: new Date("2020-10-20") },
+  { user_id: 2, company: "Amazon", date: new Date("2020-10-25") },
+  { user_id: 3, company: "Facebook", date: new Date("2020-11-01") }
+]);
+
+// ------------------- QUERIES -------------------
+
+// 1. Find all topics and tasks which are taught in the month of October
+db.topics.find({
+  date: {
+    $gte: new Date("2020-10-01"),
+    $lte: new Date("2020-10-31")
+  }
+})
+
+db.tasks.find({
+  date: {
+    $gte: new Date("2020-10-01"),
+    $lte: new Date("2020-10-31")
+  }
+})
+
+// 2. Find all the company drives which appeared between 15-oct-2020 and 31-oct-2020
+db.company_drives.find({
+  date: {
+    $gte: new Date("2020-10-15"),
+    $lte: new Date("2020-10-31")
+  }
+})
+
+// 3. Find all the company drives and students who are appeared for the placement
+db.company_drives.aggregate([
+  {
+    $lookup: {
+      from: "users",
+      localField: "user_id",
+      foreignField: "_id",
+      as: "student"
+    }
+  },
+  {
+    $unwind: "$student"
+  },
+  {
+    $project: {
+      company: 1,
+      date: 1,
+      "student.name": 1
+    }
+  }
+])
+
+// 4. Find the number of problems solved by the user in codekata
+db.codekata.aggregate([
+  {
+    $lookup: {
+      from: "users",
+      localField: "user_id",
+      foreignField: "_id",
+      as: "user"
+    }
+  },
+  {
+    $unwind: "$user"
+  },
+  {
+    $project: {
+      _id: 0,
+      user_name: "$user.name",
+      problems_solved: 1
+    }
+  }
+])
+
+// 5. Find all the mentors who has more than 15 mentees
+db.mentors.find({ mentee_count: { $gt: 15 } })
+
+// 6. Find number of users who are absent and task not submitted between 15-oct-2020 and 31-oct-2020
+db.attendance.aggregate([
+  {
+    $match: {
+      present: false,
+      date: { $gte: new Date("2020-10-15"), $lte: new Date("2020-10-31") }
+    }
+  },
+  {
+    $lookup: {
+      from: "tasks",
+      localField: "user_id",
+      foreignField: "user_id",
+      as: "user_tasks"
+    }
+  },
+  {
+    $unwind: "$user_tasks"
+  },
+  {
+    $match: {
+      "user_tasks.submitted": false,
+      "user_tasks.date": { $gte: new Date("2020-10-15"), $lte: new Date("2020-10-31") }
+    }
+  },
+  {
+    $group: {
+      _id: "$user_id"
+    }
+  },
+  {
+    $count: "absent_and_not_submitted"
+  }
+])
